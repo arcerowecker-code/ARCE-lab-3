@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIA 101 Lab 3 - Admin Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #eef4ff; padding: 30px; }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    h2 { color: #123c8c; }
+    button {
+      margin: 5px 5px 5px 0;
+      padding: 8px 14px;
+      background: #123c8c;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #0d2d6b; }
+    button.danger { background: #b3261e; }
+    button.danger:hover { background: #8c1d18; }
+    button:disabled { background: #999; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #123c8c; color: white; }
+    #status { margin-top: 10px; color: #123c8c; }
+    #denied { text-align: center; color: #b3261e; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div id="denied" class="hidden">
+      <h2>Access Denied</h2>
+      <p>This page is for administrators only.</p>
+      <p>Redirecting you to your dashboard in <span id="count">5</span> seconds...</p>
+      <button id="goBack">Go to my dashboard now</button>
+    </div>
+
+    <div id="adminContent" class="hidden">
+      <h2>Admin Dashboard</h2>
+      <p id="welcome"></p>
+
+      <button id="loadUsers">Refresh Users (GET /api/users)</button>
+      <button id="logout">Logout</button>
+
+      <p id="status"></p>
+
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Username</th><th>Role</th><th>Action</th></tr>
+        </thead>
+        <tbody id="userTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+
+    if (!token) {
+      window.location.href = '/login.html';
+    }
+
+    else if (user.role !== 'admin') {
+      document.getElementById('denied').classList.remove('hidden');
+      let seconds = 5;
+      const timer = setInterval(() => {
+        seconds--;
+        document.getElementById('count').textContent = seconds;
+        if (seconds <= 0) {
+          clearInterval(timer);
+          window.location.href = '/user.html';
+        }
+      }, 1000);
+      document.getElementById('goBack').onclick = () => {
+        window.location.href = '/user.html';
+      };
+    }
+   
+    else {
+      document.getElementById('adminContent').classList.remove('hidden');
+      document.getElementById('welcome').textContent =
+        `Welcome, ${user.username} (${user.role})`;
+      loadUsers();
+    }
+
+
+    async function callApi(url, options = {}) {
+      options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`
+      };
+      const response = await fetch(url, options);
+      const data = await response.json();
+
+     
+      if (response.status === 401 || (response.status === 403 && data.message === 'Invalid token')) {
+        localStorage.clear();
+        window.location.href = '/login.html';
+      }
+      return { ok: response.ok, data };
+    }
+
+    async function loadUsers() {
+      const { ok, data } = await callApi('/api/users');
+      const status = document.getElementById('status');
+      const tbody = document.getElementById('userTable');
+      tbody.innerHTML = '';
+
+      if (!ok) {
+        status.textContent = data.message;
+        return;
+      }
+
+      status.textContent = `${data.length} user(s) found.`;
+
+      data.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${u.id}</td><td></td><td>${u.role}</td><td></td>`;
+        tr.children[1].textContent = u.username; 
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Delete';
+        btn.className = 'danger';
+        if (u.id === user.id) {
+          btn.disabled = true;
+          btn.title = 'You cannot delete your own account';
+        } else {
+          btn.onclick = () => deleteUser(u.id, u.username);
+        }
+        tr.children[3].appendChild(btn);
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function deleteUser(id, username) {
+      if (!confirm(`Delete user "${username}"?`)) return;
+      const { ok, data } = await callApi(`/api/users/${id}`, { method: 'DELETE' });
+      document.getElementById('status').textContent = data.message;
+      if (ok) loadUsers();
+    }
+
+    document.getElementById('loadUsers').onclick = loadUsers;
+    document.getElementById('logout').onclick = () => {
+      localStorage.clear();
+      window.location.href = '/login.html';
+    };
+  </script>
+</body>
+</html>

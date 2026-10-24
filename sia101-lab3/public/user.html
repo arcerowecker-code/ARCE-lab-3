@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIA 101 Lab 3 - User Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #eef4ff; padding: 30px; }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    h2 { color: #123c8c; }
+    button {
+      margin: 5px 5px 5px 0;
+      padding: 10px 14px;
+      background: #123c8c;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #0d2d6b; }
+    pre {
+      background: #f4f4f4;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>User Dashboard</h2>
+    <p id="welcome"></p>
+
+    <button id="loadProfile">View My Profile (GET /api/profile)</button>
+    <button id="logout">Logout</button>
+
+    <pre id="output">Your profile will appear here...</pre>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+
+    if (!token) {
+      window.location.href = '/login.html';
+    }
+    else if (user.role === 'admin') {
+      window.location.href = '/admin.html';
+    }
+
+    document.getElementById('welcome').textContent =
+      `Welcome, ${user.username} (${user.role})`;
+
+    async function loadProfile() {
+      const response = await fetch('/api/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+
+      if (response.status === 401 || (response.status === 403 && data.message === 'Invalid token')) {
+        localStorage.clear();
+        window.location.href = '/login.html';
+        return;
+      }
+      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+    }
+
+    document.getElementById('loadProfile').onclick = loadProfile;
+    document.getElementById('logout').onclick = () => {
+      localStorage.clear();
+      window.location.href = '/login.html';
+    };
+  </script>
+</body>
+</html>
